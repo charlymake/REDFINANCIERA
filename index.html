@@ -221,10 +221,11 @@
     </div>
   </div>
   <div class="hero-net">
-    <div class="label">Neto acumulado registrado</div>
-    <div class="value num" id="heroNet">$0.00</div>
+    <div class="label">Neto acumulado · costo de inventario <span id="invTag" style="text-transform:none; letter-spacing:0; opacity:.7;"></span></div>
+    <div class="value num" id="heroInv">$0.00</div>
   </div>
   <div class="hero-sub">
+    <div>Registrado <b class="num" id="heroNet">$0</b></div>
     <div>Ventas <b class="num" id="heroVentas">$0</b></div>
     <div>Gastos <b class="num" id="heroGastos">$0</b></div>
     <div>Efectivo <b class="num" id="heroEfe">$0</b></div>
@@ -808,6 +809,7 @@ let ultimoRefresco = 0;
 let refrescando = false;
 
 async function refrescar(forzar){
+  if(forzar) cargarInventario();
   if(!sb || !sessionUser) return false;
   if(refrescando) return false;
   if(!forzar && Date.now() - ultimoRefresco < 5000) return false;
@@ -847,8 +849,52 @@ async function refrescar(forzar){
 }
 
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible') refrescar(false);
+  if(document.visibilityState === 'visible'){ refrescar(false); cargarInventario(); }
 });
+
+/* ============================================================
+   COSTO DE INVENTARIO (LILO)
+   Lee el catalogo del punto de venta LILO (tabla lilo_pos_state)
+   y suma costo x existencias. Se actualiza solo: al abrir la app,
+   al volver a ella y cada minuto. Sin señal muestra el ultimo valor.
+   ============================================================ */
+let invCosto = null, invFecha = null, invProductos = 0;
+try{
+  const c = JSON.parse(lsGet('invCache') || 'null');
+  if(c){ invCosto = c.costo; invFecha = c.fecha ? new Date(c.fecha) : null; invProductos = c.n || 0; }
+}catch(e){}
+
+function pintarInventario(){
+  const el = document.getElementById('heroInv');
+  const tg = document.getElementById('invTag');
+  if(!el) return;
+  el.textContent = invCosto === null ? '—' : fmt(invCosto);
+  el.style.color = '#7FE0BE';
+  if(tg){
+    if(invFecha){
+      const hh = invFecha.toLocaleTimeString('es-MX', {hour:'2-digit', minute:'2-digit'});
+      const hoy = invFecha.toDateString() === new Date().toDateString();
+      tg.textContent = '· ' + invProductos + ' prod · ' + (hoy ? hh : invFecha.toLocaleDateString('es-MX', {day:'numeric', month:'short'}) + ' ' + hh);
+    }else tg.textContent = '';
+  }
+}
+
+async function cargarInventario(){
+  if(!sb) { pintarInventario(); return; }
+  try{
+    const { data, error } = await sb.from('lilo_pos_state')
+      .select('catalog:data->catalog, updated_at').eq('id', 'main').single();
+    if(error || !data || !Array.isArray(data.catalog)) throw error || new Error('sin catalogo');
+    let total = 0;
+    data.catalog.forEach(p => { total += (Number(p.cost) || 0) * (Number(p.stock) || 0); });
+    invCosto = Math.round(total * 100) / 100;
+    invProductos = data.catalog.length;
+    invFecha = data.updated_at ? new Date(data.updated_at) : new Date();
+    lsSet('invCache', JSON.stringify({ costo: invCosto, fecha: invFecha.toISOString(), n: invProductos }));
+  }catch(e){ /* sin señal: se queda el ultimo valor guardado */ }
+  pintarInventario();
+}
+setInterval(()=>{ if(document.visibilityState === 'visible') cargarInventario(); }, 60000);
 
 async function iniciarSesion(){
   const email = document.getElementById('authEmail').value.trim();
@@ -2097,6 +2143,7 @@ function render(){
   // encabezado fijo
   document.getElementById('heroNet').textContent = fmt(t.netoTotal);
   document.getElementById('heroNet').style.color = t.netoTotal >= 0 ? '#7FE0BE' : '#F0A090';
+  pintarInventario();
   document.getElementById('heroVentas').textContent = fmt(t.ventas);
   document.getElementById('heroGastos').textContent = fmt(t.gastosNeg + t.gastosPer);
   const _efe = saldoEfectivo();
@@ -2573,6 +2620,7 @@ async function aplicarCorrecciones(){
   await aplicarCorrecciones();
   await revisarCierre();
   render();
+  cargarInventario();
 })();
 </script>
 </body>
