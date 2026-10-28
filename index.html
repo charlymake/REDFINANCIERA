@@ -849,7 +849,10 @@ async function refrescar(forzar){
 }
 
 document.addEventListener('visibilitychange', ()=>{
-  if(document.visibilityState === 'visible'){ refrescar(false); cargarInventario(); }
+  if(document.visibilityState === 'visible'){
+    refrescar(false).then(()=>importarCierresLilo());
+    cargarInventario();
+  }
 });
 
 /* ============================================================
@@ -895,6 +898,43 @@ async function cargarInventario(){
   pintarInventario();
 }
 setInterval(()=>{ if(document.visibilityState === 'visible') cargarInventario(); }, 60000);
+
+/* ============================================================
+   VENTAS AUTOMATICAS DESDE LILO
+   Cada cierre de caja de LILO (a partir del 27-oct-2026) se agrega
+   solo como "venta" (ingreso). Usa un id fijo por cierre para no
+   duplicar; si LILO corrige el total de un cierre, se actualiza aqui.
+   ============================================================ */
+const LILO_VENTAS_DESDE = '2026-10-27';
+let importandoLilo = false;
+async function importarCierresLilo(){
+  if(!sb || !sessionUser || importandoLilo) return;
+  importandoLilo = true;
+  try{
+    const { data, error } = await sb.rpc('lilo_cierres', { desde: LILO_VENTAS_DESDE });
+    if(error || !Array.isArray(data)) throw error;
+    let nuevos = 0, cambiados = 0;
+    data.forEach(c => {
+      const total = Math.round(Number(c.total) * 100) / 100;
+      if(!(total > 0)) return;
+      const id = 'lilo-cierre-' + c.hid;
+      const ya = entries.find(e => e.id === id);
+      if(!ya){
+        entries.push({ id, date: c.fecha, type: 'venta', amount: total, note: 'Cierre de caja LILO', fuente: null, cat: null, catNeg: null });
+        nuevos++;
+      }else if(Math.abs(ya.amount - total) >= 0.01 || ya.date !== c.fecha){
+        ya.amount = total; ya.date = c.fecha; cambiados++;
+      }
+    });
+    if(nuevos || cambiados){
+      await saveEntries();
+      render();
+      if(nuevos) toast(nuevos === 1 ? 'Venta del cierre de caja agregada' : nuevos + ' cierres de caja agregados');
+    }
+  }catch(e){ /* sin señal o sin sesion: se intenta en la siguiente vuelta */ }
+  importandoLilo = false;
+}
+setInterval(()=>{ if(document.visibilityState === 'visible') importarCierresLilo(); }, 60000);
 
 async function iniciarSesion(){
   const email = document.getElementById('authEmail').value.trim();
@@ -2621,6 +2661,7 @@ async function aplicarCorrecciones(){
   await revisarCierre();
   render();
   cargarInventario();
+  importarCierresLilo();
 })();
 </script>
 </body>
