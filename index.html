@@ -901,11 +901,11 @@ setInterval(()=>{ if(document.visibilityState === 'visible') cargarInventario();
 
 /* ============================================================
    VENTAS AUTOMATICAS DESDE LILO
-   Cada cierre de caja de LILO (a partir del 27-oct-2026) se agrega
+   Cada cierre de caja de LILO (a partir del 23-oct-2026; el 22 y antes se registraron a mano) se agrega
    solo como "venta" (ingreso). Usa un id fijo por cierre para no
    duplicar; si LILO corrige el total de un cierre, se actualiza aqui.
    ============================================================ */
-const LILO_VENTAS_DESDE = '2026-10-27';
+const LILO_VENTAS_DESDE = '2026-10-23';
 let importandoLilo = false;
 async function importarCierresLilo(){
   if(!sb || !sessionUser || importandoLilo) return;
