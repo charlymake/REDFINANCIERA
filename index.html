@@ -57,7 +57,9 @@
   .hero-net{margin-top:14px;}
   .hero-net .label{font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:#9AA0AC;}
   .hero-net .value{font-family:'Space Mono',monospace; font-size:34px; font-weight:700; line-height:1.15; margin-top:2px;}
-  .hero-sub{display:flex; gap:16px; margin-top:10px; font-size:12px; color:#B9BEC8;}
+  .hero-sub{display:flex; justify-content:space-between; gap:6px; margin-top:10px; font-size:11px; color:#B9BEC8;}
+  .hero-sub b{display:block; font-size:10.5px; letter-spacing:-.2px;}
+  .hero-sub > div{min-width:0; white-space:nowrap;}
   .hero-sub b{color:var(--paper); font-family:'Space Mono',monospace;}
 
   /* ---------- TABS ---------- */
@@ -229,6 +231,7 @@
     <div>Registrado <b class="num" id="heroNet">$0</b></div>
     <div>Ventas <b class="num" id="heroVentas">$0</b></div>
     <div>Gastos <b class="num" id="heroGastos">$0</b></div>
+    <div>30% venta <b class="num" id="heroMargen">$0</b></div>
     <div>Efectivo <b class="num" id="heroEfe">$0</b></div>
   </div>
   </div>
@@ -2259,6 +2262,7 @@ function render(){
   pintarInventario();
   document.getElementById('heroVentas').textContent = fmt(tm.ventas);
   document.getElementById('heroGastos').textContent = fmt(tm.gastosNeg + tm.gastosPer);
+  const _hm = document.getElementById('heroMargen'); if(_hm) _hm.textContent = fmt(tm.ventas * 0.30);
   const _ml = document.getElementById('heroMes');
   if(_ml) _ml.textContent = _hoy.toLocaleDateString('es-MX', {month:'long'});
   const _efe = saldoEfectivo();
