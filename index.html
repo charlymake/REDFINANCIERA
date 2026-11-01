@@ -901,11 +901,11 @@ setInterval(()=>{ if(document.visibilityState === 'visible') cargarInventario();
 
 /* ============================================================
    VENTAS AUTOMATICAS DESDE LILO
-   Cada cierre de caja de LILO (a partir del 23-oct-2026; el 22 y antes se registraron a mano) se agrega
+   Cada cierre de caja de LILO (a partir del 1-nov-2026; ademas un trigger en Supabase lo hace del lado del servidor) se agrega
    solo como "venta" (ingreso). Usa un id fijo por cierre para no
    duplicar; si LILO corrige el total de un cierre, se actualiza aqui.
    ============================================================ */
-const LILO_VENTAS_DESDE = '2026-10-23';
+const LILO_VENTAS_DESDE = '2026-11-01'; /* medicion desde conteo de caja del 31-oct ($7,600) */
 let importandoLilo = false;
 async function importarCierresLilo(){
   if(!sb || !sessionUser || importandoLilo) return;
@@ -917,13 +917,14 @@ async function importarCierresLilo(){
     data.forEach(c => {
       const total = Math.round(Number(c.total) * 100) / 100;
       if(!(total > 0)) return;
-      const id = 'lilo-cierre-' + c.hid;
+      /* LILO a veces repite el numero de cierre en dias distintos: id = numero + fecha */
+      const id = 'lilo-cierre-' + c.hid + '-' + c.fecha;
       const ya = entries.find(e => e.id === id);
       if(!ya){
         entries.push({ id, date: c.fecha, type: 'venta', amount: total, note: 'Cierre de caja LILO', fuente: null, cat: null, catNeg: null });
         nuevos++;
-      }else if(Math.abs(ya.amount - total) >= 0.01 || ya.date !== c.fecha){
-        ya.amount = total; ya.date = c.fecha; cambiados++;
+      }else if(Math.abs(ya.amount - total) >= 0.01){
+        ya.amount = total; cambiados++;
       }
     });
     if(nuevos || cambiados){
