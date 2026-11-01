@@ -866,9 +866,11 @@ document.addEventListener('visibilitychange', ()=>{
    al volver a ella y cada minuto. Sin señal muestra el ultimo valor.
    ============================================================ */
 let invCosto = null, invFecha = null, invProductos = 0;
+/* Consumo real de los ultimos 14 dias segun LILO: venta y costo de lo vendido */
+let invConsumo = null;
 try{
   const c = JSON.parse(lsGet('invCache') || 'null');
-  if(c){ invCosto = c.costo; invFecha = c.fecha ? new Date(c.fecha) : null; invProductos = c.n || 0; }
+  if(c){ invCosto = c.costo; invFecha = c.fecha ? new Date(c.fecha) : null; invProductos = c.n || 0; invConsumo = c.consumo || null; }
 }catch(e){}
 
 function pintarInventario(){
@@ -897,9 +899,17 @@ async function cargarInventario(){
     invCosto = Math.round(total * 100) / 100;
     invProductos = data.catalog.length;
     invFecha = data.updated_at ? new Date(data.updated_at) : new Date();
-    lsSet('invCache', JSON.stringify({ costo: invCosto, fecha: invFecha.toISOString(), n: invProductos }));
+    try{
+      const r = await sb.rpc('lilo_resumen', { desde: haceDias(14) });
+      const row = Array.isArray(r.data) ? r.data[0] : null;
+      if(!r.error && row && Number(row.dias) > 0){
+        invConsumo = { dias: Number(row.dias), venta: Number(row.venta), costo: Number(row.costo) };
+      }
+    }catch(e){}
+    lsSet('invCache', JSON.stringify({ costo: invCosto, fecha: invFecha.toISOString(), n: invProductos, consumo: invConsumo }));
   }catch(e){ /* sin señal: se queda el ultimo valor guardado */ }
   pintarInventario();
+  try{ renderInventario(); }catch(e){}
 }
 setInterval(()=>{ if(document.visibilityState === 'visible') cargarInventario(); }, 60000);
 
@@ -1601,6 +1611,22 @@ function porProveedor(desdeFecha){
 }
 
 /* Inventario estimado = compras acumuladas menos costo de lo vendido */
+/* Inventario: usa el costo REAL de LILO (costo x existencias); si no hay, estima */
+function inventarioActual(){
+  if(invCosto !== null) return { real:true, inventario: invCosto };
+  return { real:false, inventario: inventarioEstimado().inventario };
+}
+/* Costo de lo que se vende al dia: real de LILO (ultimos 14 dias) o estimado */
+function consumoDiario(){
+  if(invConsumo && invConsumo.dias > 0 && invConsumo.costo > 0){
+    return { real:true, costoDia: invConsumo.costo / invConsumo.dias, ventaDia: invConsumo.venta / invConsumo.dias,
+             margen: invConsumo.venta > 0 ? 1 - invConsumo.costo / invConsumo.venta : null };
+  }
+  const s = ventasPorDia().slice(-14);
+  if(!s.length) return null;
+  const ventaDia = s.reduce(function(a,b){ return a+b.total; },0)/s.length;
+  return { real:false, costoDia: ventaDia * (1 - MB()), ventaDia: ventaDia, margen: MB() };
+}
 function inventarioEstimado(){
   const costoPct = 1 - MB();
   const compras = entries.filter(esMercancia).reduce(function(a,b){ return a+b.amount; },0);
@@ -1611,19 +1637,16 @@ function inventarioEstimado(){
 
 /* Dias de inventario: cuanto dura lo que tienes al ritmo actual */
 function diasInventario(){
-  const inv = inventarioEstimado();
-  const s = ventasPorDia().slice(-14);
-  if(!s.length) return null;
-  const ventaDia = s.reduce(function(a,b){ return a+b.total; },0)/s.length;
-  const costoPct = 1 - MB();
-  const consumoDia = ventaDia * costoPct;
-  return consumoDia > 0 ? inv.inventario / consumoDia : null;
+  const inv = inventarioActual();
+  const c = consumoDiario();
+  return (c && c.costoDia > 0) ? inv.inventario / c.costoDia : null;
 }
 
 function renderInventario(){
   const cont = document.getElementById('inventario');
   if(!cont) return;
-  const inv = inventarioEstimado();
+  const inv = inventarioActual();
+  const cons = consumoDiario();
   const dias = diasInventario();
   const col = inv.inventario < 0 ? '#A63D2F' : '#1C6E5C';
 
@@ -1636,11 +1659,14 @@ function renderInventario(){
 
   cont.innerHTML =
     '<div class="stat-grid">' +
-      '<div class="stat"><div class="l">Inventario estimado</div><div class="v num" style="color:' + col + ';">' + fmt(inv.inventario) + '</div></div>' +
+      '<div class="stat"><div class="l">' + (inv.real ? 'Inventario real (LILO)' : 'Inventario estimado') + '</div><div class="v num" style="color:' + col + ';">' + fmt(inv.inventario) + '</div></div>' +
       '<div class="stat"><div class="l">Días de cobertura</div><div class="v num">' + (dias!==null && dias>=0 ? dias.toFixed(0) : '—') + '</div></div>' +
     '</div>' +
     '<div style="font-size:11.5px; color:var(--ink-soft); margin-top:10px; line-height:1.5;">' + txt + '</div>' +
-    '<div style="font-size:10.5px; color:var(--ink-soft); margin-top:6px;">Estimado: compras registradas menos el costo de lo vendido (' + ((1-MB())*100).toFixed(0) + '% de la venta).</div>';
+    '<div style="font-size:10.5px; color:var(--ink-soft); margin-top:6px; line-height:1.5;">' +
+      (inv.real ? 'Costo × existencias de ' + invProductos + ' productos en LILO.' : 'Estimado: compras registradas menos el costo de lo vendido (' + ((1-MB())*100).toFixed(0) + '% de la venta).') +
+      (cons ? ' Consumo: ' + fmt(cons.costoDia) + '/día a costo' + (cons.real ? ' (LILO, últimos 14 días; margen real ' + (cons.margen*100).toFixed(1) + '%)' : '') + '.' : '') +
+    '</div>';
 
   const prov = document.getElementById('proveedores');
   if(prov){
