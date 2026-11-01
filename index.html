@@ -1946,10 +1946,16 @@ function tipoNegocio(e){
 function esMercancia(e){ return e.type==='gasto_negocio' && tipoNegocio(e)==='mercancia'; }
 
 /* mes = 'YYYY-MM' para contar solo ese mes; sin parametro cuenta todo */
+/* mes = 'YYYY-MM' (o {desde,hasta}) para contar solo ese periodo; sin parametro cuenta todo */
+const INICIO_MEDICION = '2026-10-31'; /* el primer periodo (noviembre 2026) arranca el 31-oct */
+function periodoMes(mes){
+  return { desde: mes === '2026-11' ? INICIO_MEDICION : mes + '-01', hasta: mes + '-31' };
+}
 function computeTotals(mes){
   let ventas=0, gastosNeg=0, gastosPer=0, dias = new Set();
+  const per = mes ? periodoMes(mes) : null;
   entries.forEach(e=>{
-    if(mes && (!e.date || e.date.slice(0,7) !== mes)) return;
+    if(per && (!e.date || e.date < per.desde || e.date > per.hasta)) return;
     dias.add(e.date);
     if(e.type==='venta') ventas += e.amount;
     if(e.type==='gasto_negocio') gastosNeg += e.amount;
@@ -2264,7 +2270,7 @@ function render(){
   document.getElementById('heroGastos').textContent = fmt(tm.gastosNeg + tm.gastosPer);
   const _hm = document.getElementById('heroMargen'); if(_hm) _hm.textContent = fmt(tm.ventas * 0.30);
   const _ml = document.getElementById('heroMes');
-  if(_ml) _ml.textContent = _hoy.toLocaleDateString('es-MX', {month:'long'});
+  if(_ml) _ml.textContent = _mes === '2026-11' ? 'noviembre (desde 31-oct)' : _hoy.toLocaleDateString('es-MX', {month:'long'});
   const _efe = saldoEfectivo();
   const _he = document.getElementById('heroEfe');
   if(_he){ _he.textContent = fmt(_efe); _he.style.color = _efe>=0 ? '#7FE0BE' : '#F0A090'; }
