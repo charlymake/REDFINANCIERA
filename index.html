@@ -224,6 +224,7 @@
     <div class="label">Neto acumulado · costo de inventario <span id="invTag" style="text-transform:none; letter-spacing:0; opacity:.7;"></span></div>
     <div class="value num" id="heroInv">$0.00</div>
   </div>
+  <div style="font-size:9.5px; opacity:.6; text-transform:uppercase; letter-spacing:.6px; margin:6px 0 2px;">Mes de <span id="heroMes"></span> · efectivo real</div>
   <div class="hero-sub">
     <div>Registrado <b class="num" id="heroNet">$0</b></div>
     <div>Ventas <b class="num" id="heroVentas">$0</b></div>
@@ -1941,9 +1942,11 @@ function tipoNegocio(e){
 }
 function esMercancia(e){ return e.type==='gasto_negocio' && tipoNegocio(e)==='mercancia'; }
 
-function computeTotals(){
+/* mes = 'YYYY-MM' para contar solo ese mes; sin parametro cuenta todo */
+function computeTotals(mes){
   let ventas=0, gastosNeg=0, gastosPer=0, dias = new Set();
   entries.forEach(e=>{
+    if(mes && (!e.date || e.date.slice(0,7) !== mes)) return;
     dias.add(e.date);
     if(e.type==='venta') ventas += e.amount;
     if(e.type==='gasto_negocio') gastosNeg += e.amount;
@@ -2247,12 +2250,17 @@ function renderInteres(){
 function render(){
   const t = computeTotals();
 
-  // encabezado fijo
-  document.getElementById('heroNet').textContent = fmt(t.netoTotal);
-  document.getElementById('heroNet').style.color = t.netoTotal >= 0 ? '#7FE0BE' : '#F0A090';
+  // encabezado fijo: Registrado / Ventas / Gastos = solo el MES EN CURSO (arranca en 0 cada dia 1)
+  const _hoy = new Date();
+  const _mes = _hoy.getFullYear() + '-' + String(_hoy.getMonth()+1).padStart(2,'0');
+  const tm = computeTotals(_mes);
+  document.getElementById('heroNet').textContent = fmt(tm.netoTotal);
+  document.getElementById('heroNet').style.color = tm.netoTotal >= 0 ? '#7FE0BE' : '#F0A090';
   pintarInventario();
-  document.getElementById('heroVentas').textContent = fmt(t.ventas);
-  document.getElementById('heroGastos').textContent = fmt(t.gastosNeg + t.gastosPer);
+  document.getElementById('heroVentas').textContent = fmt(tm.ventas);
+  document.getElementById('heroGastos').textContent = fmt(tm.gastosNeg + tm.gastosPer);
+  const _ml = document.getElementById('heroMes');
+  if(_ml) _ml.textContent = _hoy.toLocaleDateString('es-MX', {month:'long'});
   const _efe = saldoEfectivo();
   const _he = document.getElementById('heroEfe');
   if(_he){ _he.textContent = fmt(_efe); _he.style.color = _efe>=0 ? '#7FE0BE' : '#F0A090'; }
