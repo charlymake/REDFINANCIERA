@@ -234,6 +234,11 @@
     <div>30% venta <b class="num" id="heroMargen">$0</b></div>
     <div>Efectivo <b class="num" id="heroEfe">$0</b></div>
   </div>
+  <div class="hero-sub" style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,.08);">
+    <div>Abonado a tarjetas (mes) <b class="num" id="heroAbono">$0</b></div>
+    <div>Deuda total tarjetas <b class="num" id="heroDeuda">$0</b></div>
+    <div>Por pagar al corte <b class="num" id="heroPorPagar">$0</b></div>
+  </div>
   </div>
 </header>
 
@@ -2304,6 +2309,14 @@ function render(){
   pintarInventario();
   document.getElementById('heroVentas').textContent = fmt(tm.ventas);
   document.getElementById('heroGastos').textContent = fmt(tm.gastosNeg + tm.gastosPer);
+  /* Abonos a tarjetas: apartado propio, no son gasto */
+  const abonoMes = entries.reduce(function(a,e){
+    if(!e.date || e.date < _per.desde || e.date > _per.hasta) return a;
+    return (e.type==='pago_nu' || e.type==='pago_bbva') ? a + e.amount : a;
+  }, 0);
+  const _ha = document.getElementById('heroAbono'); if(_ha) _ha.textContent = fmt(abonoMes);
+  const _hd = document.getElementById('heroDeuda'); if(_hd){ _hd.textContent = fmt(saldoTarjeta('nu') + saldoTarjeta('bbva')); _hd.style.color = '#F0A090'; }
+  const _hp = document.getElementById('heroPorPagar'); if(_hp) _hp.textContent = fmt(adeudoExigible('nu') + adeudoExigible('bbva'));
   const _hm = document.getElementById('heroMargen'); if(_hm) _hm.textContent = fmt(tm.ventas * 0.30);
   const _ml = document.getElementById('heroMes');
   if(_ml) _ml.textContent = _mes === '2026-11' ? 'noviembre (desde 31-oct)' : _hoy.toLocaleDateString('es-MX', {month:'long'});
