@@ -2289,8 +2289,16 @@ function render(){
   const _hoy = new Date();
   const _mes = _hoy.getFullYear() + '-' + String(_hoy.getMonth()+1).padStart(2,'0');
   const tm = computeTotals(_mes);
-  /* Registrado = (ventas - gastos) - 30% de la venta */
-  const regNeto = tm.netoTotal - tm.ventas * 0.30;
+  /* Registrado = ventas - gastos NO pagados con tarjeta - 30% de la venta
+     (lo pagado con Nu/BBVA se cubre al pagar la tarjeta, no sale hoy) */
+  const _per = periodoMes(_mes);
+  const gastosSinTarjeta = entries.reduce(function(a,e){
+    if(!e.date || e.date < _per.desde || e.date > _per.hasta) return a;
+    if(e.type!=='gasto_negocio' && e.type!=='gasto_personal') return a;
+    if(e.fuente==='nu' || e.fuente==='bbva') return a;
+    return a + e.amount;
+  }, 0);
+  const regNeto = tm.ventas - gastosSinTarjeta - tm.ventas * 0.30;
   document.getElementById('heroNet').textContent = fmt(regNeto);
   document.getElementById('heroNet').style.color = regNeto >= 0 ? '#7FE0BE' : '#F0A090';
   pintarInventario();
