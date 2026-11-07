@@ -2289,8 +2289,10 @@ function render(){
   const _hoy = new Date();
   const _mes = _hoy.getFullYear() + '-' + String(_hoy.getMonth()+1).padStart(2,'0');
   const tm = computeTotals(_mes);
-  document.getElementById('heroNet').textContent = fmt(tm.netoTotal);
-  document.getElementById('heroNet').style.color = tm.netoTotal >= 0 ? '#7FE0BE' : '#F0A090';
+  /* Registrado = (ventas - gastos) - 30% de la venta */
+  const regNeto = tm.netoTotal - tm.ventas * 0.30;
+  document.getElementById('heroNet').textContent = fmt(regNeto);
+  document.getElementById('heroNet').style.color = regNeto >= 0 ? '#7FE0BE' : '#F0A090';
   pintarInventario();
   document.getElementById('heroVentas').textContent = fmt(tm.ventas);
   document.getElementById('heroGastos').textContent = fmt(tm.gastosNeg + tm.gastosPer);
